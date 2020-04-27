@@ -1027,10 +1027,8 @@ void server_json_programs() {
 
 /** Output script url form */
 void server_view_scripturl() {
-#if defined(ESP8266)
 	// no authenticaion needed
 	rewind_ether_buffer();
-#endif
 
 	print_html_standard_header();
 	bfill.emit_p(PSTR("<form name=of action=cu method=get><table cellspacing=\"12\"><tr><td><b>JavaScript</b>:</td><td><input type=text size=40 maxlength=40 value=\"$O\" name=jsp></td></tr><tr><td>Default:</td><td>$S</td></tr><tr><td><b>Weather</b>:</td><td><input type=text size=40 maxlength=40 value=\"$O\" name=wsp></td></tr><tr><td>Default:</td><td>$S</td></tr><tr><td><b>Password</b>:</td><td><input type=password size=32 name=pw> <input type=submit></td></tr></table></form><script src=https://ui.opensprinkler.com/js/hasher.js></script>"), SOPT_JAVASCRIPTURL, DEFAULT_JAVASCRIPT_URL, SOPT_WEATHERURL, DEFAULT_WEATHER_URL);
@@ -1117,10 +1115,8 @@ void server_json_controller_main() {
 
 /** Output controller variables in json */
 void server_json_controller() {
-#if defined(ESP8266)
 	if(!process_password()) return;
 	rewind_ether_buffer();
-#endif
 	print_json_header();
 	server_json_controller_main();
 	handle_return(HTML_OK);
@@ -1129,9 +1125,7 @@ void server_json_controller() {
 /** Output homepage */
 void server_home()
 {
-#if defined(ESP8266)
 	rewind_ether_buffer();
-#endif
 
 	print_html_standard_header();
 	
@@ -2026,11 +2020,9 @@ void handle_web_request(char *p) {
 					ret = return_code;
 				} else if ((com[0]=='j' && com[1]=='o') ||
 									 (com[0]=='j' && com[1]=='a'))	{ // for /jo and /ja we output fwv if password fails
-#if defined(ESP8266)
+
 					if(process_password(false, dat)==false) {
-#else
-					if(check_password(dat)==false) {
-#endif
+
 						print_json_header();
 						bfill.emit_p(PSTR("\"$F\":$D}"),
 									 iopt_json_names+0, os.iopts[0]);

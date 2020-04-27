@@ -35,7 +35,7 @@ byte OpenSprinkler::hw_rev;
 
 byte OpenSprinkler::nboards;
 byte OpenSprinkler::nstations;
-byte OpenSprinkler::station_bits[MAX_NUM_BOARDS];
+byte OpenSprinkler::station_bits[1+MAX_EXT_BOARDS];	//main station + external stations
 byte OpenSprinkler::engage_booster;
 uint16_t OpenSprinkler::baseline_current;
 
@@ -57,14 +57,14 @@ uint8_t OpenSprinkler::last_reboot_cause = REBOOT_CAUSE_NONE;
 byte OpenSprinkler::weather_update_flag;
 
 // todo future: the following attribute bytes are for backward compatibility
-byte OpenSprinkler::attrib_mas[MAX_NUM_BOARDS];
-byte OpenSprinkler::attrib_igs[MAX_NUM_BOARDS];
-byte OpenSprinkler::attrib_mas2[MAX_NUM_BOARDS];
-byte OpenSprinkler::attrib_igs2[MAX_NUM_BOARDS];
-byte OpenSprinkler::attrib_igrd[MAX_NUM_BOARDS];
-byte OpenSprinkler::attrib_dis[MAX_NUM_BOARDS];
-byte OpenSprinkler::attrib_seq[MAX_NUM_BOARDS];
-byte OpenSprinkler::attrib_spe[MAX_NUM_BOARDS];
+byte OpenSprinkler::attrib_mas[1+MAX_EXT_BOARDS];
+byte OpenSprinkler::attrib_igs[1+MAX_EXT_BOARDS];
+byte OpenSprinkler::attrib_mas2[1+MAX_EXT_BOARDS];
+byte OpenSprinkler::attrib_igs2[1+MAX_EXT_BOARDS];
+byte OpenSprinkler::attrib_igrd[1+MAX_EXT_BOARDS];
+byte OpenSprinkler::attrib_dis[1+MAX_EXT_BOARDS];
+byte OpenSprinkler::attrib_seq[1+MAX_EXT_BOARDS];
+byte OpenSprinkler::attrib_spe[1+MAX_EXT_BOARDS];
 	
 extern char tmp_buffer[];
 extern char ether_buffer[];
@@ -72,9 +72,9 @@ extern char ether_buffer[];
 
 SSD1306Display OpenSprinkler::lcd(LCD_I2CADDR, SDA, SCL);
 byte OpenSprinkler::state = OS_STATE_INITIAL;
-byte OpenSprinkler::prev_station_bits[MAX_NUM_BOARDS];
-MCP* OpenSprinkler::expanders[MAX_EXT_BOARDS];
-MCP* OpenSprinkler::mainio;
+byte OpenSprinkler::prev_station_bits[1+MAX_EXT_BOARDS];
+MCP23017* OpenSprinkler::expanders[MAX_EXT_BOARDS];
+MCP23017* OpenSprinkler::mainio;
 byte OpenSprinkler::expanders_detected = 0;
 String OpenSprinkler::wifi_ssid="";
 String OpenSprinkler::wifi_pass="";
@@ -478,7 +478,6 @@ void OpenSprinkler::lcd_start() {
 	lcd.init();
 	lcd.begin();
 	flash_screen();
-
 }
 
 
@@ -489,18 +488,20 @@ void OpenSprinkler::begin() {
 
 	Wire.begin(); // init I2C
 
-	hw_type = HW_TYPE_UNKNOWN;
-	hw_rev = 1;		//TODO
+	hw_type = HW_TYPE_AC;
+	hw_rev = 1;		
 
-	mainio = new MCP(0, V1_PIN_IOEXP_CS);
+	mainio = new MCP23017(0);
     mainio->begin();
-    mainio->pinMode(V1_IO_OUTPUT);
-    mainio->pullupMode(V1_IO_OUTPUT);
-
+    mainio->portMode(PORTA, 0x00);	//all outputs on portA	(0-output, 1-input)
+ 	mainio->portMode(PORTB, 0xFF);	//all inputs on portB
+	mainio->portPullUp(PORTB, 0xFF);	//all inputs with pullup (100kohm)
+	
 	/* check hardware type */
-	pinMode(2, INPUT);			//TODO extarnal pin B0	
-	if(digitalRead(2)==LOW) hw_type = HW_TYPE_AC;
-	else hw_type = HW_TYPE_DC;
+	//pinMode(2, INPUT_PULLUP);			//should be extarnal pin B0	
+	//pinMode(15, INPUT_PULLUP);			//should be extarnal pin B0	
+	//if(digitalRead(2)==LOW) hw_type = HW_TYPE_AC;
+	//else hw_type = HW_TYPE_DC;
 
 	PIN_BUTTON_1 = V1_PIN_BUTTON_1;
 	PIN_BUTTON_2 = V1_PIN_BUTTON_2;
@@ -509,12 +510,11 @@ void OpenSprinkler::begin() {
 	PIN_BOOST_EN = V1_PIN_BOOST_EN;
 	PIN_SENSOR1 = V1_PIN_SENSOR1;
 	PIN_SENSOR2 = V1_PIN_SENSOR2;
-	
+
 	/* detect expanders */
 	for(byte i=0;i<MAX_EXT_BOARDS;i++)
 		expanders[i] = NULL;
-	detect_expanders();
-
+	detect_expanders();		
 
 	// Reset all stations
 	clear_all_station_bits();
@@ -523,7 +523,7 @@ void OpenSprinkler::begin() {
 	// OS 3.0 has two independent sensors
 	pinModeExt(PIN_SENSOR1, INPUT);
 	pinModeExt(PIN_SENSOR2, INPUT);
-	
+
 	// Default controller status variables
 	// Static variables are assigned 0 by default
 	// so only need to initialize non-zero ones
@@ -542,9 +542,8 @@ void OpenSprinkler::begin() {
 	status.has_curr_sense = 1;	// OS3.0 has current sensing capacility
 	// measure baseline current
 	baseline_current = 80;
-		
-	lcd_start();
 
+	lcd_start();
 	lcd.createChar(ICON_CONNECTED, _iconimage_connected);
 	lcd.createChar(ICON_DISCONNECTED, _iconimage_disconnected);
 	lcd.createChar(ICON_REMOTEXT, _iconimage_remotext);
@@ -552,21 +551,22 @@ void OpenSprinkler::begin() {
 	lcd.createChar(ICON_RAIN, _iconimage_rain);
 	lcd.createChar(ICON_SOIL, _iconimage_soil);
 
-		/* create custom characters */
-		lcd.createChar(ICON_ETHER_CONNECTED, _iconimage_ether_connected);
-		lcd.createChar(ICON_ETHER_DISCONNECTED, _iconimage_ether_disconnected);
+	/* create custom characters */
+	lcd.createChar(ICON_ETHER_CONNECTED, _iconimage_ether_connected);
+	lcd.createChar(ICON_ETHER_DISCONNECTED, _iconimage_ether_disconnected);
 		
-		lcd.setCursor(0,0);
-		lcd.print(F("Init file system"));
-		lcd.setCursor(0,1);
-		if(!SPIFFS.begin()) {
-			// !!! flash init failed, stall as we cannot proceed
-			lcd.setCursor(0, 0);
-			lcd_print_pgm(PSTR("Error Code: 0x2D"));
-			delay(5000);
-		}
+	lcd.setCursor(0,0);
+	lcd.print(F("Init file system"));
+	lcd.setCursor(0,1);
+	
+	if(!SPIFFS.begin()) {
+		// !!! flash init failed, stall as we cannot proceed
+		lcd.setCursor(0, 0);
+		lcd_print_pgm(PSTR("Error Code: 0x2D"));
+		delay(5000);
+	}
 
-		state = OS_STATE_INITIAL;
+	state = OS_STATE_INITIAL;
 		
 	// set button pins
 	// enable internal pullup
@@ -596,19 +596,20 @@ void OpenSprinkler::apply_all_station_bits() {
 		}
 
 		// Handle driver board (on main controller)
-		uint16_t reg = mainio->digitalRead(); 
- 		reg = (reg&0xFF00) | station_bits[0];
-		mainio->digitalWrite(reg); 
+		uint8_t reg = mainio->portRead(PORTA);
+ 		reg = (reg & 0x00) | station_bits[0];
+		mainio->portWrite(PORTA, reg); 
 			
 		// Handle expansion boards
-		for(int i=1;i<(MAX_EXT_BOARDS+1);i++) {				//TODO check that
-			uint16_t data = station_bits[i*2+2];
-			data = (data<<8) + station_bits[i*2+1];
-			expanders[i]->digitalWrite(data);
+		for(int i=0;i<MAX_EXT_BOARDS;i++) {				//TODO check that
+			uint16_t data = station_bits[i+1];	//
+			//data = (data<<8) + station_bits[i*2+1];
+			if(expanders[i] !=NULL) {
+				expanders[i]->portWrite(PORTA, data);
+			} 
 		}
 		
 	byte bid, s, sbits;  
-
 
 	if(iopts[IOPT_SPE_AUTO_REFRESH]) {
 		// handle refresh of RF and remote stations
@@ -827,7 +828,7 @@ void OpenSprinkler::attribs_save() {
 	byte bid, s, sid=0;
 	StationAttrib at;
 	byte ty = STN_TYPE_STANDARD;
-	for(bid=0;bid<MAX_NUM_BOARDS;bid++) {
+	for(bid=0;bid<(1+MAX_EXT_BOARDS);bid++) {	//for(bid=0;bid<(1+MAX_NUM_BOARDS;bid++) {
 		for(s=0;s<8;s++,sid++) {
 			at.mas = (attrib_mas[bid]>>s) & 1;
 			at.igs = (attrib_igs[bid]>>s) & 1;
@@ -861,7 +862,7 @@ void OpenSprinkler::attribs_load() {
 	memset(attrib_seq, 0, nboards);
 	memset(attrib_spe, 0, nboards);
 								
-	for(bid=0;bid<MAX_NUM_BOARDS;bid++) {
+	for(bid=0;bid<(1+MAX_EXT_BOARDS);bid++) {
 		for(s=0;s<8;s++,sid++) {
 			file_read_block(STATIONS_FILENAME, &at, (uint32_t)sid*sizeof(StationData)+offsetof(StationData, attrib), sizeof(StationAttrib));
 			attrib_mas[bid] |= (at.mas<<s);
@@ -1287,9 +1288,8 @@ void OpenSprinkler::options_setup() {
 		attribs_load();
 	}
 
-#if defined(ARDUINO)	// handle AVR buttons
-	byte button = button_read(BUTTON_WAIT_NONE);
 
+	byte button = button_read(BUTTON_WAIT_NONE);
 	switch(button & BUTTON_MASK) {
 
 	case BUTTON_1:
@@ -1301,7 +1301,6 @@ void OpenSprinkler::options_setup() {
 		break;
 
 	case BUTTON_2:
-	#if defined(ESP8266)
 		// if BUTTON_2 is pressed during startup, go to Test OS mode
 		// only available for OS 3.0
 		lcd_print_line_clear_pgm(PSTR("===Test Mode==="), 0);
@@ -1313,16 +1312,10 @@ void OpenSprinkler::options_setup() {
 		
 		//iopts[IOPT_WIFI_MODE] = WIFI_MODE_STA;
 		wifi_testmode = 1;
-		#if defined(TESTMODE_SSID)
-		wifi_ssid = TESTMODE_SSID;
-		wifi_pass = TESTMODE_PASS;
-		#else
 		wifi_ssid = "ostest";
 		wifi_pass = "opendoor";
-		#endif
-		button = 0;
-	#endif
-	
+		//#endif
+		button = 0;	
 		break;
 
 	case BUTTON_3:
@@ -1349,16 +1342,12 @@ void OpenSprinkler::options_setup() {
 	if (!button) {
 		// flash screen
 		lcd_print_line_clear_pgm(PSTR(" OpenSprinkler"),0);
-		lcd.setCursor((hw_type==HW_TYPE_LATCH)?2:4, 1);	//TODO
+		lcd.setCursor(4, 1);		
 		lcd_print_pgm(PSTR("v"));
 		byte hwv = iopts[IOPT_HW_VERSION];
 		lcd.print((char)('0'+(hwv/10)));
 		lcd.print('.');
-		#if defined(ESP8266)
 		lcd.print(hw_rev);
-		#else
-		lcd.print((char)('0'+(hwv%10)));
-		#endif
 		switch(hw_type) {
 		case HW_TYPE_DC:
 			lcd_print_pgm(PSTR(" DC"));
@@ -1370,7 +1359,6 @@ void OpenSprinkler::options_setup() {
 			lcd_print_pgm(PSTR(" AC"));
 		}
 		delay(1500);
-		#if defined(ESP8266)
 		lcd.setCursor(2, 1);
 		lcd_print_pgm(PSTR("FW "));
 		lcd.print((char)('0'+(OS_FW_VERSION/100)));
@@ -1382,9 +1370,7 @@ void OpenSprinkler::options_setup() {
 		lcd.print(OS_FW_MINOR);
 		lcd.print(')');
 		delay(1000);
-		#endif
 	}
-#endif
 }
 
 /** Load non-volatile controller status data from file */
@@ -1927,17 +1913,13 @@ void OpenSprinkler::save_wifi_ip() {
 	}
 }
 
-void OpenSprinkler::detect_expanders() {		//TODO change this to new expander
-	for(byte i=0;i<MAX_EXT_BOARDS;i++) {
-    	if(expanders[i]!=NULL) delete expanders[i+1];
-		expanders[i] = new MCP(i, V1_PIN_IOEXP_CS);	//all expanders share the same CS pin
-		expanders[i]->begin();
-		expanders[i]->pinMode(V1_IO_OUTPUT);		//TODO change all to outputs
-		expanders[i]->pullupMode(V1_IO_OUTPUT);
-		if (expanders[i]->digitalRead(GPPUA) != V1_IO_OUTPUT) {
-			delete expanders[i];
-		}else{
-			expanders_detected++;
+void OpenSprinkler::detect_expanders() {		//TODO to be checked
+
+	for(byte i=0; i<MAX_EXT_BOARDS;i++) {
+		Wire.beginTransmission(EXP_I2CADDR_BASE+i+1);
+		if(Wire.endTransmission()==0){
+			expanders[i] = new MCP23017(i+1);
+			expanders[i]->portMode(PORTA, 0x00); 	// set all channels to output
 		}
 	}
 }

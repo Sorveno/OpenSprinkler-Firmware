@@ -1,6 +1,6 @@
 
 #include <Wire.h>
-#include "../lib/MCP23S17/MCP23S17.h"
+#include "../lib/MCP23017/MCP23017.h"
 
 struct tcp_pcb;
 extern struct tcp_pcb* tcp_tw_pcbs;

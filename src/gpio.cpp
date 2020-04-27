@@ -32,15 +32,15 @@ extern OpenSprinkler os;
 
 void pinModeExt(byte pin, byte mode) {
 	if(pin==255) return;
-	os.mainio->pinMode(pin-IOEXP_PIN, mode);
+	//os.mainio->pinMode(pin-IOEXP_PIN, mode);
 }
 
 void digitalWriteExt(byte pin, byte value) {
 	if(pin==255) return;
-	os.mainio->digitalWrite(pin-IOEXP_PIN, value);
+	//os.mainio->digitalWrite(pin-IOEXP_PIN, value);
 }
 
 byte digitalReadExt(byte pin) {
-	if(pin==255) return HIGH;
-	return os.mainio->digitalRead(pin-IOEXP_PIN);
+	//if(pin==255) return HIGH;
+	return 1;//os.mainio->digitalRead(pin-IOEXP_PIN);
 }

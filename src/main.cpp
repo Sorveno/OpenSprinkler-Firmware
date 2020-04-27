@@ -128,8 +128,6 @@ bool ui_confirm(PGM_P str) {
 }
 
 void ui_state_machine() {
- 
-#if defined(ESP8266)
 	// process screen led
 	static ulong led_toggle_timeout = 0;
 	if(led_blink_ms) {
@@ -138,7 +136,7 @@ void ui_state_machine() {
 			led_toggle_timeout = millis() + led_blink_ms;
 		}
 	}
-#endif	
+
 
 	if (!os.button_timeout) {
 		//os.lcd_set_brightness(0);
@@ -288,7 +286,7 @@ void do_setup() {
 	led_blink_ms = LED_FAST_BLINK;
 
 	DEBUG_BEGIN(115200);
-	
+
 	os.begin();					 // OpenSprinkler init
 	os.options_setup();  // Setup options
 
@@ -363,32 +361,10 @@ void do_loop()
 	time_t curr_time = os.now_tz();
 	
 	// ====== Process Ethernet packets ======
-#if defined(ARDUINO)	// Process Ethernet packets for Arduino
-	#if defined(ESP8266)
 	static ulong connecting_timeout;
 	if (m_server) {	// if wired Ethernet
 		led_blink_ms = 0;
-		Ethernet.maintain(); // todo: is this necessary?
-		EthernetClient client = m_server->available();
-		if (client) {
-			while (true) {
-				int len = client.read((uint8_t*) ether_buffer, ETHER_BUFFER_SIZE);
-				if (len <= 0) {
-					if(!client.connected()) {
-						break;
-					} else {
-						continue;
-					}
 
-				} else {
-					m_client = &client;
-					ether_buffer[len] = 0;	// put a zero at the end of the packet
-					handle_web_request(ether_buffer);
-					m_client= 0;
-					break;
-				}
-			}
-		}
 	} else {	
 		switch(os.state) {
 		case OS_STATE_INITIAL:
@@ -459,80 +435,26 @@ void do_loop()
 			break;
 		}
 	}
-	
-	#else // AVR
-	
-	EthernetClient client = m_server->available();
-	if (client) {
-		while(true) {
-			int len = client.read((uint8_t*) ether_buffer, ETHER_BUFFER_SIZE);
-			if (len <=0) {
-				if(!client.connected()) {
-					break;
-				} else {
-					continue;
-				}
-			} else {
-				m_client = &client;
-				ether_buffer[len] = 0;	// put a zero at the end of the packet
-				handle_web_request(ether_buffer);
-				m_client = NULL;
-				break;
-			}
-		}
-	}
-
-	Ethernet.maintain();
-	 
-	wdt_reset();	// reset watchdog timer
-	wdt_timeout = 0;
-	#endif
 		
 	ui_state_machine();
 
-#else // Process Ethernet packets for RPI/BBB
-	EthernetClient client = m_server->available();
-	if (client) {
-		while(true) {
-			int len = client.read((uint8_t*) ether_buffer, ETHER_BUFFER_SIZE);
-			if (len <=0) {
-				if(!client.connected()) {
-					break;
-				} else {
-					continue;
-				}
-			} else {
-				m_client = &client;
-				ether_buffer[len] = 0;	// put a zero at the end of the packet
-				handle_web_request(ether_buffer);
-				m_client = 0;
-				break;
-			}
-		}
-	}
-#endif	// Process Ethernet packets
 
 	// The main control loop runs once every second
 	if (curr_time != last_time) {
 
-		#if defined(ESP8266)
 		pinModeExt(PIN_SENSOR1, INPUT_PULLUP); // this seems necessary for OS 3.2
 		pinModeExt(PIN_SENSOR2, INPUT_PULLUP);
-		#endif
 		
 		last_time = curr_time;
 		if (os.button_timeout) os.button_timeout--;
 		
-		#if defined(ESP8266)
 		if(reboot_timer && millis() > reboot_timer) {
 			os.reboot_dev(REBOOT_CAUSE_TIMER);
 		}
-		#endif
 			
-#if defined(ARDUINO)
 		if (!ui_state)
 			os.lcd_print_time(os.now_tz());				// print time
-#endif
+
 
 		// ====== Check raindelay status ======
 		if (os.status.rain_delayed) {
@@ -657,19 +579,6 @@ void do_loop()
 			// calculate start and end time
 			if (match_found) {
 				schedule_all_stations(curr_time);
-
-				// For debugging: print out queued elements
-				/*DEBUG_PRINT("en:");
-				for(q=pd.queue;q<pd.queue+pd.nqueue;q++) {
-					DEBUG_PRINT("[");
-					DEBUG_PRINT(q->sid);
-					DEBUG_PRINT(",");
-					DEBUG_PRINT(q->dur);
-					DEBUG_PRINT(",");
-					DEBUG_PRINT(q->st);
-					DEBUG_PRINT("]");
-				}
-				DEBUG_PRINTLN("");*/
 			}
 		}//if_check_current_minute
 
@@ -834,11 +743,9 @@ void do_loop()
 		// activate/deactivate valves
 		os.apply_all_station_bits();
 
-#if defined(ARDUINO)
 		// process LCD display
 		if (!ui_state) {
 			os.lcd_print_station(1, ui_anim_chars[(unsigned long)curr_time%3]);
-			#if defined(ESP8266)
 			if(os.get_wifi_mode()==WIFI_MODE_STA && WiFi.status()==WL_CONNECTED && WiFi.localIP()) {
 				os.lcd.setCursor(0, 2);
 				os.lcd.clear(2, 2);
@@ -849,7 +756,6 @@ void do_loop()
 					os.lcd.print(F(" mA"));
 				}
 			}
-			#endif
 		}
 		
 		// check safe_reboot condition
@@ -870,7 +776,6 @@ void do_loop()
 				}
 			}
 		}
-#endif
 
 		// real-time flow count
 		static ulong flowcount_rt_start = 0;
@@ -912,10 +817,6 @@ void do_loop()
 		}
 
 	}
-
-	#if !defined(ARDUINO)
-		delay(1); // For OSPI/OSBO/LINUX, sleep 1 ms to minimize CPU usage
-	#endif
 }
 
 /** Make weather query */
@@ -926,11 +827,9 @@ void check_weather() {
 	if (os.status.network_fails>0 || os.iopts[IOPT_REMOTE_EXT_MODE]) return;
 	if (os.status.program_busy) return;
 	
-#if defined(ESP8266)
 	if (!m_server) {
 		if (os.get_wifi_mode()!=WIFI_MODE_STA || WiFi.status()!=WL_CONNECTED || os.state!=OS_STATE_CONNECTED) return;
 	}
-#endif
 
 	ulong ntz = os.now_tz();
 	if (os.checkwt_success_lasttime && (ntz > os.checkwt_success_lasttime + CHECK_WEATHER_SUCCESS_TIMEOUT)) {
@@ -1079,14 +978,7 @@ void schedule_all_stations(ulong curr_time) {
 			// stagger concurrent stations by 1 second
 			con_start_time++;
 		}
-		/*DEBUG_PRINT("[");
-		DEBUG_PRINT(sid);
-		DEBUG_PRINT(":");
-		DEBUG_PRINT(q->st);
-		DEBUG_PRINT(",");
-		DEBUG_PRINT(q->dur);
-		DEBUG_PRINT("]");
-		DEBUG_PRINTLN(pd.nqueue);*/
+
 		if (!os.status.program_busy) {
 			os.status.program_busy = 1;  // set program busy bit
 			// start flow count
@@ -1563,12 +1455,6 @@ void perform_ntp_sync() {
 			setTime(t);
 			RTC.set(t);
 			DEBUG_PRINTLN(RTC.get());
-			#if !defined(ESP8266)
-			// if rtc was uninitialized and now it is, restart
-			if(rtc_zero && now()>978307200L) {
-				os.reboot_dev(REBOOT_CAUSE_NTP);
-			}
-			#endif
 		}
 	}
 #else

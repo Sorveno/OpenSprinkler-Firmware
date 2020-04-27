@@ -1,6 +1,6 @@
 OpenSprinkler ESP8266 Firmware 
 
-Cloned from: https://github.com/OpenSprinkler/OpenSprinkler-Firmware
+Forked from: https://github.com/OpenSprinkler/OpenSprinkler-Firmware
 
 Changes:
 - uses platformIO

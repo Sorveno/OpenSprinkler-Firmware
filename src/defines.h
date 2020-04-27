@@ -123,9 +123,7 @@ typedef unsigned long ulong;
 /** Storage / zone expander defines */
 #define MAX_EXT_BOARDS    4  // maximum number of 8-zone expanders (each 16-zone expander counts as 2)
 
-
-#define MAX_NUM_BOARDS    (1+MAX_EXT_BOARDS)  // maximum number of 8-zone boards including expanders
-#define MAX_NUM_STATIONS  (MAX_NUM_BOARDS*8)  // maximum number of stations
+#define MAX_NUM_STATIONS  (8+(MAX_EXT_BOARDS*8))  // maximum number of stations (onboard stations + external stations)
 #define STATION_NAME_SIZE 32    // maximum number of characters in each station name
 #define MAX_SOPTS_SIZE    160   // maximum string option size
 
@@ -240,6 +238,7 @@ enum {
 
 	#define OS_HW_VERSION    (OS_HW_VERSION_BASE+30)
 	#define IOEXP_PIN        0x80 // base for pins on main IO expander
+	#define EXP_I2CADDR_BASE 0x20	//base addres for expansion board
 	#define LCD_I2CADDR      0x3C // 128x64 OLED display I2C address
 
 	#define PIN_CURR_SENSE    A0
@@ -270,27 +269,15 @@ enum {
 	#define V1_PIN_SENSOR1       IOEXP_PIN+8 // sensor 1
 	#define V1_PIN_SENSOR2       IOEXP_PIN+9 // sensor 2
 
-
+#define ENABLE_DEBUG
 #if defined(ENABLE_DEBUG) /** Serial debug functions */
-
-	#if defined(ARDUINO)
-		#define DEBUG_BEGIN(x)   {Serial.begin(x);}
-		#define DEBUG_PRINT(x)   {Serial.print(x);}
-		#define DEBUG_PRINTLN(x) {Serial.println(x);}
-	#else
-		#include <stdio.h>
-		#define DEBUG_BEGIN(x)          {}  /** Serial debug functions */
-		inline  void DEBUG_PRINT(int x) {printf("%d", x);}
-		inline  void DEBUG_PRINT(const char*s) {printf("%s", s);}
-		#define DEBUG_PRINTLN(x)        {DEBUG_PRINT(x);printf("\n");}
-	#endif
-  
+	#define DEBUG_BEGIN(x)   {Serial.begin(x);}
+	#define DEBUG_PRINT(x)   {Serial.print(x);}
+	#define DEBUG_PRINTLN(x) {Serial.println(x);}
 #else
-
 	#define DEBUG_BEGIN(x)   {}
 	#define DEBUG_PRINT(x)   {}
 	#define DEBUG_PRINTLN(x) {}
-
 #endif
 
 /** Other defines */

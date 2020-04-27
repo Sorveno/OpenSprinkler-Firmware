@@ -33,7 +33,7 @@
 #include <Arduino.h>
 #include <Wire.h>
 #include <SPI.h>
-#include "../lib/MCP23S17/MCP23S17.h"
+#include "../lib/MCP23017/MCP23017.h"
 #include <UIPEthernet.h>
 #include "I2CRTC.h"
 
@@ -256,8 +256,8 @@ public:
 	//static void lcd_set_brightness(byte value=1);
 	static void lcd_set_contrast();
 
-	static MCP *mainio;
-	static MCP *expanders[];
+	static MCP23017 *mainio;
+	static MCP23017 *expanders[];
 	static byte expanders_detected;
 	static void detect_expanders();
 	static void flash_screen();
