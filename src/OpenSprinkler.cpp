@@ -23,8 +23,6 @@
 
 #include "OpenSprinkler.h"
 #include "OSserver.h"
-#include "gpio.h"
-//#include "testmode.h"
 
 /** Declare static data members */
 NVConData OpenSprinkler::nvdata;
@@ -509,8 +507,10 @@ void OpenSprinkler::begin() {
 	PIN_BOOST = V1_PIN_BOOST;
 	PIN_BOOST_EN = V1_PIN_BOOST_EN;
 	PIN_SENSOR1 = V1_PIN_SENSOR1;
+	
+	#if  defined(V1_PIN_SENSOR2)
 	PIN_SENSOR2 = V1_PIN_SENSOR2;
-
+	#endif
 	/* detect expanders */
 	for(byte i=0;i<MAX_EXT_BOARDS;i++)
 		expanders[i] = NULL;
@@ -521,8 +521,10 @@ void OpenSprinkler::begin() {
 	apply_all_station_bits();
 
 	// OS 3.0 has two independent sensors
-	pinModeExt(PIN_SENSOR1, INPUT);
-	pinModeExt(PIN_SENSOR2, INPUT);
+	pinMode(PIN_SENSOR1, INPUT);
+	#if  defined(V1_PIN_SENSOR2)
+	pinMode(PIN_SENSOR2, INPUT);
+	#endif
 
 	// Default controller status variables
 	// Static variables are assigned 0 by default
@@ -587,11 +589,11 @@ void OpenSprinkler::apply_all_station_bits() {
 		// Handle DC booster
 		if(hw_type==HW_TYPE_DC && engage_booster) {		//TODO handle booster
 			// for DC controller: boost voltage and enable output path
-			digitalWriteExt(PIN_BOOST_EN, LOW);  // disfable output path
-			digitalWriteExt(PIN_BOOST, HIGH);		 // enable boost converter
+			//digitalWriteExt(PIN_BOOST_EN, LOW);  // disfable output path
+			//digitalWriteExt(PIN_BOOST, HIGH);		 // enable boost converter
 			delay((int)iopts[IOPT_BOOST_TIME]<<2);	// wait for booster to charge
-			digitalWriteExt(PIN_BOOST, LOW);		 // disable boost converter
-			digitalWriteExt(PIN_BOOST_EN, HIGH); // enable output path
+			//digitalWriteExt(PIN_BOOST, LOW);		 // disable boost converter
+			//digitalWriteExt(PIN_BOOST_EN, HIGH); // enable output path
 			engage_booster = 0;
 		}
 
@@ -629,8 +631,8 @@ void OpenSprinkler::apply_all_station_bits() {
 void OpenSprinkler::detect_binarysensor_status(ulong curr_time) {
 	// sensor_type: 0 if normally closed, 1 if normally open
 	if(iopts[IOPT_SENSOR1_TYPE]==SENSOR_TYPE_RAIN || iopts[IOPT_SENSOR1_TYPE]==SENSOR_TYPE_SOIL) {
-		pinModeExt(PIN_SENSOR1, INPUT_PULLUP); // this seems necessary for OS 3.2
-		byte val = digitalReadExt(PIN_SENSOR1);
+		pinMode(PIN_SENSOR1, INPUT_PULLUP); // this seems necessary for OS 3.2
+		byte val = digitalRead(PIN_SENSOR1);
 		status.sensor1 = (val == iopts[IOPT_SENSOR1_OPTION]) ? 0 : 1;
 		if(status.sensor1) {
 			if(!sensor1_on_timer) {
@@ -657,10 +659,10 @@ void OpenSprinkler::detect_binarysensor_status(ulong curr_time) {
 	}
 
 // ESP8266 is guaranteed to have sensor 2
-#if defined(ESP8266) || defined(PIN_SENSOR2)
+#if  defined(V1_PIN_SENSOR2)
 	if(iopts[IOPT_SENSOR2_TYPE]==SENSOR_TYPE_RAIN || iopts[IOPT_SENSOR2_TYPE]==SENSOR_TYPE_SOIL) {
-		pinModeExt(PIN_SENSOR2, INPUT_PULLUP); // this seems necessary for OS 3.2	
-		byte val = digitalReadExt(PIN_SENSOR2);
+		pinMode(PIN_SENSOR2, INPUT_PULLUP); // this seems necessary for OS 3.2	
+		byte val = digitalRead(PIN_SENSOR2);
 		status.sensor2 = (val == iopts[IOPT_SENSOR2_OPTION]) ? 0 : 1;
 		if(status.sensor2) {
 			if(!sensor2_on_timer) {
@@ -695,21 +697,21 @@ byte OpenSprinkler::detect_programswitch_status(ulong curr_time) {
 	byte ret = 0;
 	if(iopts[IOPT_SENSOR1_TYPE]==SENSOR_TYPE_PSWITCH) {
 		static ulong keydown_time = 0;
-		pinModeExt(PIN_SENSOR1, INPUT_PULLUP); // this seems necessary for OS 3.2
-		status.sensor1 = (digitalReadExt(PIN_SENSOR1) != iopts[IOPT_SENSOR1_OPTION]);
-		byte val = (digitalReadExt(PIN_SENSOR1) == iopts[IOPT_SENSOR1_OPTION]);
+		pinMode(PIN_SENSOR1, INPUT_PULLUP); // this seems necessary for OS 3.2
+		status.sensor1 = (digitalRead(PIN_SENSOR1) != iopts[IOPT_SENSOR1_OPTION]);
+		byte val = (digitalRead(PIN_SENSOR1) == iopts[IOPT_SENSOR1_OPTION]);
 		if(!val && !keydown_time) keydown_time = curr_time;
 		else if(val && keydown_time && (curr_time > keydown_time)) {
 			keydown_time = 0;
 			ret |= 0x01;
 		}
 	}
-#if defined(ESP8266) || defined(PIN_SENSOR2)	
+#if  defined(V1_PIN_SENSOR2)	
 	if(iopts[IOPT_SENSOR2_TYPE]==SENSOR_TYPE_PSWITCH) {
 		static ulong keydown_time_2 = 0;
-		pinModeExt(PIN_SENSOR2, INPUT_PULLUP); // this seems necessary for OS 3.2		
-		status.sensor2 = (digitalReadExt(PIN_SENSOR2) != iopts[IOPT_SENSOR2_OPTION]);
-		byte val = (digitalReadExt(PIN_SENSOR2) == iopts[IOPT_SENSOR2_OPTION]);
+		pinMode(PIN_SENSOR2, INPUT_PULLUP); // this seems necessary for OS 3.2		
+		status.sensor2 = (digitalRead(PIN_SENSOR2) != iopts[IOPT_SENSOR2_OPTION]);
+		byte val = (digitalRead(PIN_SENSOR2) == iopts[IOPT_SENSOR2_OPTION]);
 		if(!val && !keydown_time_2) keydown_time_2 = curr_time;
 		else if(val && keydown_time_2 && (curr_time > keydown_time_2)) {
 			keydown_time_2 = 0;
@@ -1735,11 +1737,11 @@ byte OpenSprinkler::button_read_busy(byte pin_butt, byte waitmode, byte butt, by
 	int hold_time = 0;
 
 	if (waitmode==BUTTON_WAIT_NONE || (waitmode == BUTTON_WAIT_HOLD && is_holding)) {
-		if (digitalReadExt(pin_butt) != 0) return BUTTON_NONE;
+		if (digitalRead(pin_butt) != 0) return BUTTON_NONE;
 		return butt | (is_holding ? BUTTON_FLAG_HOLD : 0);
 	}
 
-	while (digitalReadExt(pin_butt) == 0 &&
+	while (digitalRead(pin_butt) == 0 &&
 				 (waitmode == BUTTON_WAIT_RELEASE || (waitmode == BUTTON_WAIT_HOLD && hold_time<BUTTON_HOLD_MS))) {
 		delay(BUTTON_DELAY_MS);
 		hold_time += BUTTON_DELAY_MS;
@@ -1759,11 +1761,11 @@ byte OpenSprinkler::button_read(byte waitmode)
 
 	delay(BUTTON_DELAY_MS);
 
-	if (digitalReadExt(PIN_BUTTON_1) == 0) {
+	if (digitalRead(PIN_BUTTON_1) == 0) {		//(digitalReadExt(PIN_BUTTON_1) == 0) {	//TODO Is it possible to move to main chip?
 		curr = button_read_busy(PIN_BUTTON_1, waitmode, BUTTON_1, is_holding);
-	} else if (digitalReadExt(PIN_BUTTON_2) == 0) {
+	} else if (digitalRead(PIN_BUTTON_2) == 0) {
 		curr = button_read_busy(PIN_BUTTON_2, waitmode, BUTTON_2, is_holding);
-	} else if (digitalReadExt(PIN_BUTTON_3) == 0) {
+	} else if (digitalRead(PIN_BUTTON_3) == 0) {
 		curr = button_read_busy(PIN_BUTTON_3, waitmode, BUTTON_3, is_holding);
 	}
 

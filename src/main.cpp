@@ -81,9 +81,9 @@ float flow_last_gpm=0;
 
 void flow_poll() {
 	#if defined(ESP8266)
-	pinModeExt(PIN_SENSOR1, INPUT_PULLUP); // this seems necessary for OS 3.2 
+	pinMode(PIN_SENSOR1, INPUT_PULLUP); // this seems necessary for OS 3.2 
 	#endif
-	byte curr_flow_state = digitalReadExt(PIN_SENSOR1);
+	byte curr_flow_state = digitalRead(PIN_SENSOR1);
 	if(!(prev_flow_state==HIGH && curr_flow_state==LOW)) {	// only record on falling edge
 		prev_flow_state = curr_flow_state;
 		return;
@@ -158,10 +158,10 @@ void ui_state_machine() {
 		switch (button & BUTTON_MASK) {
 		case BUTTON_1:
 			if (button & BUTTON_FLAG_HOLD) {	// holding B1
-				if (digitalReadExt(PIN_BUTTON_3)==0) { // if B3 is pressed while holding B1, run a short test (internal test)
+				if (digitalRead(PIN_BUTTON_3)==0) { // if B3 is pressed while holding B1, run a short test (internal test)
 					if(!ui_confirm(PSTR("Start 2s test?"))) {ui_state = UI_STATE_DEFAULT; break;}
 					manual_start_program(255, 0);
-				} else if (digitalReadExt(PIN_BUTTON_2)==0) { // if B2 is pressed while holding B1, display gateway IP
+				} else if (digitalRead(PIN_BUTTON_2)==0) { // if B2 is pressed while holding B1, display gateway IP
 					os.lcd.clear(0, 1);
 					os.lcd.setCursor(0, 0);
 					#if defined(ESP8266)
@@ -194,12 +194,12 @@ void ui_state_machine() {
 			break;
 		case BUTTON_2:
 			if (button & BUTTON_FLAG_HOLD) {	// holding B2
-				if (digitalReadExt(PIN_BUTTON_1)==0) { // if B1 is pressed while holding B2, display external IP
+				if (digitalRead(PIN_BUTTON_1)==0) { // if B1 is pressed while holding B2, display external IP
 					os.lcd_print_ip((byte*)(&os.nvdata.external_ip), 1);
 					os.lcd.setCursor(0, 1);
 					os.lcd_print_pgm(PSTR("(eip)"));
 					ui_state = UI_STATE_DISP_IP;
-				} else if (digitalReadExt(PIN_BUTTON_3)==0) {  // if B3 is pressed while holding B2, display last successful weather call
+				} else if (digitalRead(PIN_BUTTON_3)==0) {  // if B3 is pressed while holding B2, display last successful weather call
 					//os.lcd.clear(0, 1);
 					os.lcd_print_time(os.checkwt_success_lasttime);
 					os.lcd.setCursor(0, 1);
@@ -223,13 +223,13 @@ void ui_state_machine() {
 			break;
 		case BUTTON_3:
 			if (button & BUTTON_FLAG_HOLD) {	// holding B3
-				if (digitalReadExt(PIN_BUTTON_1)==0) {	// if B1 is pressed while holding B3, display up time
+				if (digitalRead(PIN_BUTTON_1)==0) {	// if B1 is pressed while holding B3, display up time
 					os.lcd_print_time(os.powerup_lasttime);
 					os.lcd.setCursor(0, 1);
 					os.lcd_print_pgm(PSTR("(lupt) cause:"));
 					os.lcd.print(os.last_reboot_cause);
 					ui_state = UI_STATE_DISP_IP;							
-				} else if(digitalReadExt(PIN_BUTTON_2)==0) {	// if B2 is pressed while holding B3, reset to AP and reboot
+				} else if(digitalRead(PIN_BUTTON_2)==0) {	// if B2 is pressed while holding B3, reset to AP and reboot
 					#if defined(ESP8266)
 					if(!ui_confirm(PSTR("Reset to AP?"))) {ui_state = UI_STATE_DEFAULT; break;}
 					os.reset_to_ap();
@@ -442,9 +442,10 @@ void do_loop()
 	// The main control loop runs once every second
 	if (curr_time != last_time) {
 
-		pinModeExt(PIN_SENSOR1, INPUT_PULLUP); // this seems necessary for OS 3.2
-		pinModeExt(PIN_SENSOR2, INPUT_PULLUP);
-		
+		pinMode(PIN_SENSOR1, INPUT_PULLUP); // this seems necessary for OS 3.2
+		#if  defined(V1_PIN_SENSOR2)
+		pinMode(PIN_SENSOR2, INPUT_PULLUP);
+		#endif
 		last_time = curr_time;
 		if (os.button_timeout) os.button_timeout--;
 		

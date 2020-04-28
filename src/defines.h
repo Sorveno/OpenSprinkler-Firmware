@@ -237,7 +237,6 @@ enum {
 /** Hardware defines */
 
 	#define OS_HW_VERSION    (OS_HW_VERSION_BASE+30)
-	#define IOEXP_PIN        0x80 // base for pins on main IO expander
 	#define EXP_I2CADDR_BASE 0x20	//base addres for expansion board
 	#define LCD_I2CADDR      0x3C // 128x64 OLED display I2C address
 
@@ -256,20 +255,15 @@ enum {
 	extern byte PIN_IOEXP_CS;
 
 	/* OS30 revision 1 pin defines */
-	// pins on PCA9555A IO expander have pin numbers IOEXP_PIN+i
-	//All IO pins are on expander
-	#define V1_IO_CONFIG         0xFF00 // config bits
-	#define V1_IO_OUTPUT         0xFF00 // output bits
-	#define V1_PIN_IOEXP_CS      16
-	#define V1_PIN_BUTTON_1      0 // button 1
-	#define V1_PIN_BUTTON_2      2 // button 2
-	#define V1_PIN_BUTTON_3      5 // button 3
-	#define V1_PIN_BOOST         IOEXP_PIN+13
-	#define V1_PIN_BOOST_EN      IOEXP_PIN+14
-	#define V1_PIN_SENSOR1       IOEXP_PIN+8 // sensor 1
-	#define V1_PIN_SENSOR2       IOEXP_PIN+9 // sensor 2
+	#define V1_PIN_BUTTON_1      16 // button 1
+	#define V1_PIN_BUTTON_2      14 // button 2
+	#define V1_PIN_BUTTON_3      12 // button 3
+	#define V1_PIN_BOOST         255
+	#define V1_PIN_BOOST_EN      255
+	#define V1_PIN_SENSOR1       13 // sensor 1
+	//#define V1_PIN_SENSOR2       10 // sensor 2
 
-#define ENABLE_DEBUG
+//#define ENABLE_DEBUG
 #if defined(ENABLE_DEBUG) /** Serial debug functions */
 	#define DEBUG_BEGIN(x)   {Serial.begin(x);}
 	#define DEBUG_PRINT(x)   {Serial.print(x);}

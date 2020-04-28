@@ -27,7 +27,7 @@
 
 #include "defines.h"
 #include "utils.h"
-#include "gpio.h"
+//#include "gpio.h"
 #include "images.h"
 
 #include <Arduino.h>
